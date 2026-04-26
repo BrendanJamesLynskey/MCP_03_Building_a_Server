@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP 03 — Building a Server</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-card: #0d1117;
+            --bg-code: #161b22;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent: #76B900;
+            --accent-dim: #76B90044;
+            --accent-glow: #76B90033;
+            --border: #21262d;
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+            --font-body: 'Inter', sans-serif;
+            --max-width: 900px;
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            font-size: 17px;
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem 1.5rem;
+            text-align: center;
+            position: relative;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .hero > * { position: relative; z-index: 1; }
+        .series-label {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: clamp(2rem, 5vw, 3.2rem);
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.2;
+            margin-bottom: 1rem;
+        }
+        .hero h1 .accent { color: var(--accent); }
+        .hero .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            max-width: 640px;
+            margin-bottom: 2rem;
+        }
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: center;
+            margin-bottom: 2.5rem;
+        }
+        .tag {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
+            white-space: nowrap;
+        }
+        .pipeline {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            margin-bottom: 1rem;
+            max-width: var(--max-width);
+        }
+        .pipeline-step {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            padding: 0.3rem 0.7rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        .pipeline-arrow { color: var(--accent); font-size: 0.9rem; font-weight: 700; }
+        .slide {
+            min-height: 100vh;
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 4rem 1.5rem;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .slide-number {
+            font-family: var(--font-display);
+            font-size: 5rem;
+            font-weight: 700;
+            color: var(--accent-dim);
+            position: absolute;
+            top: 2rem;
+            right: 1.5rem;
+            line-height: 1;
+            user-select: none;
+        }
+        .slide h2 {
+            font-family: var(--font-display);
+            font-size: 1.9rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 1.5rem;
+            line-height: 1.25;
+        }
+        .slide h3 {
+            font-family: var(--font-display);
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+        .slide p { margin-bottom: 1rem; color: var(--text-secondary); }
+        .slide p strong { color: var(--text-primary); }
+        .slide ul, .slide ol { margin-bottom: 1rem; padding-left: 1.5rem; color: var(--text-secondary); }
+        .slide li { margin-bottom: 0.4rem; }
+        .slide li strong { color: var(--text-primary); }
+        .slide code {
+            font-family: var(--font-mono);
+            font-size: 0.88em;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            padding: 0.05rem 0.35rem;
+            border-radius: 3px;
+            color: #c9d1d9;
+        }
+        .code-block {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin: 1.25rem 0;
+            overflow: hidden;
+        }
+        .code-header {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--accent);
+            background: rgba(118, 185, 0, 0.08);
+            padding: 0.4rem 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .code-block pre { margin: 0; padding: 1rem; overflow-x: auto; }
+        .code-block code {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: #c9d1d9;
+            background: transparent;
+            border: none;
+            padding: 0;
+        }
+        .kw { color: #ff7b72; }
+        .fn { color: #d2a8ff; }
+        .str { color: #a5d6ff; }
+        .cm { color: #8b949e; font-style: italic; }
+        .num { color: #79c0ff; }
+        .type { color: #ffa657; }
+        .dir { color: #ff7b72; }
+        .mac { color: #ffa657; }
+        .table-wrap {
+            overflow-x: auto;
+            margin: 1.25rem 0;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th {
+            background: var(--bg-code);
+            color: var(--accent);
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-family: var(--font-display);
+            white-space: nowrap;
+        }
+        td {
+            padding: 0.6rem 1rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:nth-child(even) td { background: rgba(13, 17, 23, 0.5); }
+        .diagram-flow {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .diagram-box {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            text-align: center;
+            white-space: nowrap;
+        }
+        .diagram-box.accent { border-color: var(--accent); color: var(--accent); background: rgba(118, 185, 0, 0.08); }
+        .diagram-box.dim { color: var(--text-secondary); border-color: var(--border); }
+        .diagram-arrow { color: var(--accent); font-size: 1.3rem; font-weight: 700; }
+        .diagram-vertical {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .diagram-vertical .diagram-arrow { font-size: 1.1rem; }
+        .hierarchy {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .hierarchy-level { display: flex; align-items: center; gap: 0.75rem; }
+        .hierarchy-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            min-width: 80px;
+            text-align: right;
+        }
+        .hierarchy-items { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+        .hierarchy-item {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        .hierarchy-item.accent { border-color: var(--accent); color: var(--accent); background: rgba(118, 185, 0, 0.08); }
+        .diagram-grid {
+            display: grid;
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .diagram-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+        .diagram-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+        .diagram-panel {
+            padding: 1rem;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+        .diagram-panel.accent-border { border-left: 3px solid var(--accent); }
+        .diagram-panel h4 {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+        }
+        .diagram-panel p, .diagram-panel ul { font-size: 0.85rem; }
+        .callout {
+            background: var(--bg-card);
+            border-left: 3px solid var(--accent);
+            border-radius: 0 8px 8px 0;
+            padding: 1rem 1.25rem;
+            margin: 1.25rem 0;
+        }
+        .callout p { margin-bottom: 0; }
+        .callout p + p { margin-top: 0.5rem; }
+        .callout .callout-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.3rem;
+        }
+        .contents-list { list-style: none; padding-left: 0; counter-reset: contents; }
+        .contents-list li {
+            counter-increment: contents;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .contents-list li:last-child { border-bottom: none; }
+        .contents-list li::before {
+            content: counter(contents, decimal-leading-zero);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent);
+            min-width: 2rem;
+        }
+        .contents-list a { color: var(--text-primary); text-decoration: none; transition: color 0.2s; }
+        .contents-list a:hover { color: var(--accent); }
+        .footer {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            border-top: 1px solid var(--border);
+            max-width: var(--max-width);
+            margin: 0 auto;
+        }
+        .footer a { color: var(--accent); text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+        .canvas-wrap {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1.25rem 0;
+            overflow-x: auto;
+        }
+        .canvas-wrap canvas, .canvas-wrap svg { display: block; margin: 0 auto; max-width: 100%; }
+        .badge {
+            display: inline-block;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            padding: 0.1rem 0.45rem;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            vertical-align: middle;
+            margin-left: 0.3rem;
+        }
+        .badge.ok    { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+        .badge.warn  { border-color: #ffa657; color: #ffa657; background: rgba(255,166,87,0.08); }
+        .badge.bad   { border-color: #ff7b72; color: #ff7b72; background: rgba(255,123,114,0.08); }
+        @media (max-width: 640px) {
+            .slide { padding: 3rem 1rem; min-height: auto; }
+            .slide-number { font-size: 3rem; top: 1.5rem; right: 1rem; }
+            .slide h2 { font-size: 1.5rem; }
+            .diagram-grid.cols-2, .diagram-grid.cols-3 { grid-template-columns: 1fr; }
+            .pipeline { gap: 0.15rem; }
+            .pipeline-step { font-size: 0.6rem; padding: 0.2rem 0.4rem; }
+            .hero h1 { font-size: 1.8rem; }
+            table { font-size: 0.78rem; }
+        }
+    </style>
+</head>
+<body>
+<header class="hero">
+    <div class="series-label">Model Context Protocol Series — Presentation 03</div>
+    <h1>Building an <span class="accent">MCP Server</span></h1>
+    <p class="subtitle">From a 30-line skeleton to production-shaped servers — tools, resources, prompts, sampling, elicitation, errors, progress, cancellation and logging. Python and TypeScript SDKs side-by-side.</p>
+
+    <div class="tags">
+        <span class="tag">Python SDK</span>
+        <span class="tag">TypeScript SDK</span>
+        <span class="tag">Tools</span>
+        <span class="tag">Resources</span>
+        <span class="tag">Prompts</span>
+        <span class="tag">Sampling</span>
+        <span class="tag">Elicitation</span>
+    </div>
+
+    <div class="pipeline">
+        <span class="pipeline-step">SDK</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Tools</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Resources</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Prompts</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Sampling</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Elicitation</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Errors</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Inspector</span>
+    </div>
+</header>
+
+<section class="slide" id="slide-00">
+    <div class="slide-number">00</div>
+    <h2>Topics We'll Cover</h2>
+    <ul class="contents-list">
+        <li><a href="#slide-01">SDK Landscape &amp; the Minimum Viable Server</a></li>
+        <li><a href="#slide-02">Tools &mdash; Schema, Structured Output, Annotations</a></li>
+        <li><a href="#slide-03">Resources &mdash; URIs, Content Types, Subscriptions</a></li>
+        <li><a href="#slide-04">Prompts &mdash; Reusable Argumented Templates</a></li>
+        <li><a href="#slide-05">Sampling &mdash; Borrowing the Host's Model</a></li>
+        <li><a href="#slide-06">Elicitation &mdash; Asking the User a Typed Question</a></li>
+        <li><a href="#slide-07">Errors, Progress, Cancellation, Logging</a></li>
+        <li><a href="#slide-08">Testing &mdash; The MCP Inspector</a></li>
+        <li><a href="#slide-09">What to Take Away</a></li>
+    </ul>
+</section>
+
+<section class="slide" id="slide-01">
+    <div class="slide-number">01</div>
+    <h2>SDK Landscape &amp; the Minimum Viable Server</h2>
+
+    <p>Anthropic publishes first-party SDKs in <strong>Python, TypeScript, Java, C#, Kotlin, Swift, Go and Ruby</strong>. They're all generated from one schema, so feature parity is good. The two you'll meet most often are Python (FastMCP) and TypeScript &mdash; we'll show both in parallel.</p>
+
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>Python &mdash; FastMCP idiom</h4>
+<pre style="margin:0;"><code style="font-family: var(--font-mono); font-size: 0.78rem;"><span class="kw">from</span> mcp.server.fastmcp <span class="kw">import</span> FastMCP
+
+mcp = FastMCP(<span class="str">"weather"</span>)
+
+@mcp.tool()
+<span class="kw">def</span> <span class="fn">forecast</span>(region: <span class="type">str</span>) -&gt; <span class="type">dict</span>:
+    <span class="str">"""24h forecast for an ISO 3166-2 region."""</span>
+    <span class="kw">return</span> {<span class="str">"tempC"</span>: <span class="num">12.0</span>,
+            <span class="str">"summary"</span>: <span class="str">"light rain"</span>}
+
+<span class="kw">if</span> __name__ == <span class="str">"__main__"</span>:
+    mcp.run()  <span class="cm"># stdio by default</span>
+</code></pre>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>TypeScript &mdash; the official SDK</h4>
+<pre style="margin:0;"><code style="font-family: var(--font-mono); font-size: 0.78rem;"><span class="kw">import</span> { McpServer } <span class="kw">from</span> <span class="str">"@modelcontextprotocol/sdk/server/mcp.js"</span>;
+<span class="kw">import</span> { StdioServerTransport }
+  <span class="kw">from</span> <span class="str">"@modelcontextprotocol/sdk/server/stdio.js"</span>;
+<span class="kw">import</span> { z } <span class="kw">from</span> <span class="str">"zod"</span>;
+
+<span class="kw">const</span> server = <span class="kw">new</span> McpServer({ name: <span class="str">"weather"</span>, version: <span class="str">"1.0"</span> });
+
+server.registerTool(<span class="str">"forecast"</span>, {
+  inputSchema: { region: z.string() },
+  outputSchema: { tempC: z.number(), summary: z.string() }
+}, <span class="kw">async</span> ({ region }) =&gt; ({
+  structuredContent: { tempC: <span class="num">12</span>, summary: <span class="str">"light rain"</span> },
+  content: [{ type: <span class="str">"text"</span>, text: <span class="str">"London 12 C, light rain"</span> }]
+}));
+
+<span class="kw">await</span> server.connect(<span class="kw">new</span> StdioServerTransport());
+</code></pre>
+        </div>
+    </div>
+
+    <p>FastMCP autogenerates the input schema from Python type hints; the TS SDK uses Zod and converts to JSON Schema at registration time. Either way the wire-format is identical &mdash; pick by language preference, not by feature.</p>
+
+    <div class="callout">
+        <div class="callout-label">What &ldquo;done&rdquo; looks like</div>
+        <p>The 30-line server above &mdash; if you save it, point Claude Desktop or Inspector at it, and call <code>forecast</code> &mdash; is a complete MCP server. Everything we cover for the rest of this deck adds polish around that core.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-02">
+    <div class="slide-number">02</div>
+    <h2>Tools &mdash; Schema, Structured Output, Annotations</h2>
+
+    <p>A tool exposes one function the model can call. Three pieces matter: the <strong>input schema</strong>, the <strong>output schema</strong> (since 2025-06-18) and the <strong>annotations</strong> that classify the tool's effects.</p>
+
+    <h3>Anatomy of a Tool descriptor</h3>
+    <div class="code-block">
+        <div class="code-header">tools/list result item &mdash; abridged</div>
+<pre><code><span class="str">{
+  "name": "create_issue",
+  "title": "Create GitHub Issue",
+  "description": "Open a new issue on a GitHub repository.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "repo":  { "type": "string", "pattern": "^[^/]+/[^/]+$" },
+      "title": { "type": "string", "minLength": 1, "maxLength": 256 },
+      "body":  { "type": "string" },
+      "labels":{ "type": "array", "items": { "type": "string" } }
+    },
+    "required": ["repo","title"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "number": { "type": "integer" },
+      "url":    { "type": "string", "format": "uri" }
+    },
+    "required": ["number","url"]
+  },
+  "annotations": {
+    "title":           "Create GitHub Issue",
+    "readOnlyHint":    false,
+    "destructiveHint": false,
+    "idempotentHint":  false,
+    "openWorldHint":   true
+  }
+}</span></code></pre>
+    </div>
+
+    <h3>The five annotation hints</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Hint</th><th>Meaning</th><th>What hosts do with it</th></tr></thead>
+            <tbody>
+                <tr><td><code>readOnlyHint</code></td><td>Tool only reads state</td><td>Auto-approve, batch with other reads, no confirmation prompt</td></tr>
+                <tr><td><code>destructiveHint</code></td><td>Side effect is hard to reverse (e.g. <code>DROP TABLE</code>, <code>git push --force</code>)</td><td>Always confirm, often with explicit typed acknowledgement</td></tr>
+                <tr><td><code>idempotentHint</code></td><td>Repeating the same call has no extra effect</td><td>Safe to retry on transport-level failures</td></tr>
+                <tr><td><code>openWorldHint</code></td><td>Tool reaches outside the host's process (network, external services)</td><td>Show a network indicator; route through a proxy if policy requires</td></tr>
+                <tr><td><code>title</code></td><td>Human-readable display name</td><td>UI rendering &mdash; the only annotation a user sees directly</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>Returning a result</h3>
+    <p>A successful <code>tools/call</code> returns three things: an array of <code>content</code> blocks (text/image/audio/resource_link) for the model, optional <code>structuredContent</code> for downstream code, and <code>isError: false</code>. A tool-level failure flips <code>isError</code> to <code>true</code> and puts the explanation in <code>content</code>.</p>
+
+    <div class="code-block">
+        <div class="code-header">A successful create_issue call &mdash; result shape</div>
+<pre><code><span class="str">{
+  "content": [
+    { "type": "text",
+      "text": "Created issue #42: 'Bug in login flow'." },
+    { "type": "resource_link",
+      "uri":  "https://github.com/me/repo/issues/42",
+      "name": "Issue #42" }
+  ],
+  "structuredContent": { "number": 42,
+                         "url": "https://github.com/me/repo/issues/42" },
+  "isError": false
+}</span></code></pre>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">Resource links are new in 2025-06-18</div>
+        <p>Embedding a <code>resource_link</code> in a tool result tells the host &ldquo;this tool produced a resource at this URI; you can <code>resources/read</code> it later.&rdquo; This is how a long-running tool returns &ldquo;here's the report I generated&rdquo; without inlining megabytes into the call's response.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-03">
+    <div class="slide-number">03</div>
+    <h2>Resources &mdash; URIs, Content Types, Subscriptions</h2>
+    <p>Resources are the read side of MCP. The model can pull a file's contents, a database row, a Confluence page &mdash; addressed by URI &mdash; without you having to write a tool wrapper for every read pattern.</p>
+
+    <h3>Two flavours: static and templated</h3>
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>Static resources</h4>
+            <p>Enumerated in <code>resources/list</code>. URI is exact. Examples: a configuration file, a fixed help document, a schema dump.</p>
+            <p style="margin-top:0.5rem;"><code>file:///etc/server.conf</code></p>
+            <p><code>config://server/limits</code></p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>Templated resources</h4>
+            <p>Declared as RFC 6570 URI templates. The client substitutes parameters at <code>resources/read</code> time. Lets you expose a parameterised surface without enumerating every value.</p>
+            <p style="margin-top:0.5rem;"><code>db://users/{user_id}/profile</code></p>
+            <p><code>git://repo/{ref}/{path}</code></p>
+        </div>
+    </div>
+
+    <h3>Reading a resource</h3>
+    <div class="code-block">
+        <div class="code-header">resources/read &mdash; request and response</div>
+<pre><code><span class="cm">// &rarr; client</span>
+<span class="str">{"jsonrpc":"2.0","id":7,"method":"resources/read",
+ "params":{"uri":"db://users/42/profile"}}</span>
+<span class="cm">// &larr; server</span>
+<span class="str">{"jsonrpc":"2.0","id":7,"result":{
+  "contents":[{
+    "uri":"db://users/42/profile",
+    "mimeType":"application/json",
+    "text":"{\"id\":42,\"name\":\"Ada\",\"role\":\"admin\"}"
+  }]
+}}</span></code></pre>
+    </div>
+
+    <p>Each entry in <code>contents</code> carries either a UTF-8 <code>text</code> field or a base64 <code>blob</code> for binary types &mdash; PDFs, images, audio. The <code>mimeType</code> is used by the host to decide rendering and by the model to disambiguate parsing.</p>
+
+    <h3>Subscriptions &mdash; pushing changes</h3>
+    <p>If the server declared <code>resources.subscribe: true</code> at handshake, the client can ask to be told when a specific URI changes:</p>
+
+    <div class="code-block">
+        <div class="code-header">Subscribe &amp; receive notifications</div>
+<pre><code><span class="cm">// &rarr; client</span>
+<span class="str">{"jsonrpc":"2.0","id":8,"method":"resources/subscribe",
+ "params":{"uri":"file:///project/README.md"}}</span>
+
+<span class="cm">// &larr; server, later when the file changes</span>
+<span class="str">{"jsonrpc":"2.0","method":"notifications/resources/updated",
+ "params":{"uri":"file:///project/README.md"}}</span></code></pre>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">Subscription is stateful</div>
+        <p>The server tracks per-session subscriptions. If your server is horizontally scaled, sticky-route by <code>Mcp-Session-Id</code> or replicate the subscription set in shared state. Free-flow tip: bound the number of subscriptions per session and reject excess with <code>-32602 Invalid params</code>.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-04">
+    <div class="slide-number">04</div>
+    <h2>Prompts &mdash; Reusable Argumented Templates</h2>
+    <p>Prompts are the third server primitive: parameterised text templates the user can invoke explicitly &mdash; typically as slash commands in the host UI. They differ from tools in two ways: they're <strong>user-driven</strong>, not model-driven, and they produce <strong>messages to insert</strong>, not results to act on.</p>
+
+    <div class="code-block">
+        <div class="code-header">A prompt with arguments &mdash; FastMCP</div>
+<pre><code><span class="kw">from</span> mcp.server.fastmcp <span class="kw">import</span> FastMCP
+<span class="kw">from</span> mcp.server.fastmcp.prompts <span class="kw">import</span> base
+
+mcp = FastMCP(<span class="str">"reviewer"</span>)
+
+@mcp.prompt()
+<span class="kw">def</span> <span class="fn">review_pr</span>(repo: <span class="type">str</span>, pr_number: <span class="type">int</span>, focus: <span class="type">str</span> = <span class="str">"correctness"</span>):
+    <span class="str">"""Run a structured PR review."""</span>
+    <span class="kw">return</span> [
+        base.UserMessage(
+            <span class="str">f"Review PR #{pr_number} on {repo}. "</span>
+            <span class="str">f"Focus on {focus}. Use the &lsquo;diff&rsquo; tool first, "</span>
+            <span class="str">f"then comment via &lsquo;create_review&rsquo;."</span>),
+    ]
+</code></pre>
+    </div>
+
+    <h3>The wire view</h3>
+    <div class="code-block">
+        <div class="code-header">prompts/list (truncated)</div>
+<pre><code><span class="str">{"jsonrpc":"2.0","id":11,"result":{
+  "prompts":[{
+    "name":"review_pr",
+    "description":"Run a structured PR review.",
+    "arguments":[
+      {"name":"repo","required":true},
+      {"name":"pr_number","required":true},
+      {"name":"focus","required":false}
+    ]
+  }]
+}}</span></code></pre>
+    </div>
+
+    <div class="code-block">
+        <div class="code-header">prompts/get &mdash; what the user actually invokes</div>
+<pre><code><span class="cm">// &rarr; client</span>
+<span class="str">{"jsonrpc":"2.0","id":12,"method":"prompts/get","params":{
+  "name":"review_pr",
+  "arguments":{"repo":"acme/api","pr_number":"341","focus":"security"}}}</span>
+<span class="cm">// &larr; server</span>
+<span class="str">{"jsonrpc":"2.0","id":12,"result":{
+  "messages":[{
+    "role":"user",
+    "content":{"type":"text",
+      "text":"Review PR #341 on acme/api. Focus on security. ..."}
+  }]
+}}</span></code></pre>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">Argument autocompletion</div>
+        <p>If a server declares the <code>completions</code> capability, the client can call <code>completion/complete</code> as the user is typing a prompt argument and get suggestions back. Practical example: a <code>repo</code> argument suggests the repos the OAuth principal has access to, fetched live.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-05">
+    <div class="slide-number">05</div>
+    <h2>Sampling &mdash; Borrowing the Host's Model</h2>
+    <p>Sampling inverts the usual direction. The <em>server</em> calls <code>sampling/createMessage</code>, asking the <em>client</em>'s LLM to produce a completion. Lets a server build agentic behaviour without bringing its own model &mdash; and lets the user keep control of which model is used and how much is spent.</p>
+
+    <div class="code-block">
+        <div class="code-header">Server-initiated sampling request</div>
+<pre><code><span class="str">{"jsonrpc":"2.0","id":99,"method":"sampling/createMessage","params":{
+  "messages":[
+    {"role":"user","content":{"type":"text",
+      "text":"Summarise this issue thread in three bullets."}}
+  ],
+  "modelPreferences":{
+    "hints":[{"name":"claude-sonnet-4"}],
+    "intelligencePriority":0.6,
+    "speedPriority":0.3,
+    "costPriority":0.1
+  },
+  "systemPrompt":"You are a precise issue triager.",
+  "maxTokens":400,
+  "temperature":0.0,
+  "includeContext":"thisServer"
+}}</span></code></pre>
+    </div>
+
+    <h3>How the host gates this</h3>
+    <ul>
+        <li><strong>The user MUST approve.</strong> Sampling can leak data and cost real money &mdash; the host typically prompts on first use per server, with an &ldquo;always allow&rdquo; option per tool family.</li>
+        <li><strong>Model preferences are hints, not contracts.</strong> The host picks the actual model from what's available given user policy.</li>
+        <li><strong><code>includeContext</code></strong> can be <code>none</code>, <code>thisServer</code>, or <code>allServers</code> &mdash; controls whether messages from <em>other</em> connected servers' contexts get folded in.</li>
+    </ul>
+
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>Why this exists</h4>
+            <p>A code-review server can ask the host to generate the actual review prose; a research server can ask for a summary; an agent server can run an inner loop using the host's model. None of them needs an API key.</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>Why hosts gate it</h4>
+            <p>Without consent a malicious server could exfiltrate context (&ldquo;summarise everything you know about this user&rdquo;) or grind up billing. The user-approval gate is non-negotiable.</p>
+        </div>
+    </div>
+</section>
+
+<section class="slide" id="slide-06">
+    <div class="slide-number">06</div>
+    <h2>Elicitation &mdash; Asking the User a Typed Question</h2>
+    <p>Elicitation, standardised in <code>2025-06-18</code>, lets a server pause and ask the <em>user</em> a structured question mid-flow. The server sends a JSON Schema describing the requested input; the host renders it as a form; the user accepts, declines, or cancels.</p>
+
+    <div class="code-block">
+        <div class="code-header">elicitation/create &mdash; server &rarr; client</div>
+<pre><code><span class="str">{"jsonrpc":"2.0","id":21,"method":"elicitation/create","params":{
+  "message":"Confirm shipping address for order #4421.",
+  "requestedSchema":{
+    "type":"object",
+    "properties":{
+      "name":   { "type":"string" },
+      "street": { "type":"string" },
+      "city":   { "type":"string" },
+      "zip":    { "type":"string", "pattern":"^[0-9]{5}$" },
+      "country":{ "type":"string", "enum":["US","UK","DE","FR"] }
+    },
+    "required":["name","street","city","zip","country"]
+  }
+}}</span></code></pre>
+    </div>
+
+    <div class="code-block">
+        <div class="code-header">Response (user accepted)</div>
+<pre><code><span class="str">{"jsonrpc":"2.0","id":21,"result":{
+  "action":"accept",
+  "content":{
+    "name":"Ada Lovelace",
+    "street":"1 Analytical Way",
+    "city":"London",
+    "zip":"10001",
+    "country":"UK"
+  }
+}}</span></code></pre>
+    </div>
+
+    <h3>The three actions</h3>
+    <div class="diagram-grid cols-3">
+        <div class="diagram-panel accent-border">
+            <h4>accept</h4>
+            <p>User filled the form. <code>content</code> validated against <code>requestedSchema</code>.</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>decline</h4>
+            <p>User explicitly refused. The server should fail gracefully &mdash; do <em>not</em> retry.</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>cancel</h4>
+            <p>User dismissed without choosing. Treat as &ldquo;unknown&rdquo;; the server may try a different path.</p>
+        </div>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">When to elicit vs sample vs ask via prompt</div>
+        <p><strong>Sample</strong> when you want text generated by the model. <strong>Elicit</strong> when you want a typed answer from the user. <strong>Prompt</strong> when the user is initiating the action and you want to seed the conversation.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-07">
+    <div class="slide-number">07</div>
+    <h2>Errors, Progress, Cancellation, Logging</h2>
+
+    <h3>Tool errors vs JSON-RPC errors</h3>
+    <p>The single most common server-side mistake. A tool that ran but failed (<em>&ldquo;the API returned 401&rdquo;</em>) returns a normal JSON-RPC <code>result</code> with <code>isError: true</code>:</p>
+
+    <div class="code-block">
+        <div class="code-header">Right &mdash; tool failure as a result, not an error</div>
+<pre><code><span class="str">{"jsonrpc":"2.0","id":3,"result":{
+  "content":[{"type":"text","text":"Auth failed: 401 Unauthorized. Refresh your token and retry."}],
+  "isError":true
+}}</span></code></pre>
+    </div>
+
+    <p>JSON-RPC errors are reserved for protocol-layer problems &mdash; bad params, unknown method, malformed JSON. The reason: the model needs to <em>see</em> tool failures to course-correct; protocol errors short-circuit before the model gets a turn.</p>
+
+    <h3>Progress notifications</h3>
+    <p>Any long-running request (<code>tools/call</code>, <code>resources/read</code>) can include a <code>progressToken</code> in <code>params._meta</code>. The server then emits <code>notifications/progress</code> with the same token at intervals.</p>
+
+    <div class="code-block">
+        <div class="code-header">Progress wire shape</div>
+<pre><code><span class="str">{"jsonrpc":"2.0","method":"notifications/progress","params":{
+  "progressToken":"abc-7",
+  "progress":0.45,
+  "total":1.0,
+  "message":"Indexing 45 of 100 files"
+}}</span></code></pre>
+    </div>
+
+    <h3>Cancellation</h3>
+    <p>Either side can cancel an in-flight request by sending a notification with the request ID. The receiver SHOULD stop work and SHOULD NOT send the response. Initialize cannot be cancelled.</p>
+
+    <div class="code-block">
+        <div class="code-header">notifications/cancelled</div>
+<pre><code><span class="str">{"jsonrpc":"2.0","method":"notifications/cancelled","params":{
+  "requestId":42,
+  "reason":"User pressed Esc"
+}}</span></code></pre>
+    </div>
+
+    <h3>Logging</h3>
+    <p>If the server declared <code>logging</code> capability, the client can call <code>logging/setLevel</code> to set a syslog-style level (<code>debug</code>, <code>info</code>, <code>notice</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>alert</code>, <code>emergency</code>). The server emits structured records via <code>notifications/message</code>:</p>
+
+    <div class="code-block">
+        <div class="code-header">A log record</div>
+<pre><code><span class="str">{"jsonrpc":"2.0","method":"notifications/message","params":{
+  "level":"warning",
+  "logger":"db.pool",
+  "data":{"event":"slow_query","durationMs":1840,"sql":"SELECT ..."}
+}}</span></code></pre>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">Don't log secrets</div>
+        <p>Log records flow into the host. The host MAY display them, persist them, or include them in error reports. Never log the <code>Authorization</code> header, OAuth tokens, refresh tokens, or row contents you wouldn't show the user. Deck 04 returns to this from the security side.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-08">
+    <div class="slide-number">08</div>
+    <h2>Testing &mdash; The MCP Inspector</h2>
+    <p>The <code>@modelcontextprotocol/inspector</code> Node tool is the official conformance harness. It launches your server (stdio or HTTP), exercises every primitive interactively, and shows the raw JSON-RPC traffic. If your server doesn't pass Inspector smoke-tests, no host will be able to use it.</p>
+
+    <div class="code-block">
+        <div class="code-header">Run Inspector against a stdio server</div>
+<pre><code><span class="cm"># with no arguments &mdash; opens a UI on http://localhost:6274</span>
+npx @modelcontextprotocol/inspector
+
+<span class="cm"># launching your server directly</span>
+npx @modelcontextprotocol/inspector \
+    uvx mcp-server-sqlite --db-path /tmp/test.db
+
+<span class="cm"># a Streamable HTTP server</span>
+npx @modelcontextprotocol/inspector \
+    --transport http http://localhost:3000/mcp</code></pre>
+    </div>
+
+    <h3>What to exercise</h3>
+    <div class="hierarchy">
+        <div class="hierarchy-level">
+            <span class="hierarchy-label">handshake</span>
+            <div class="hierarchy-items">
+                <span class="hierarchy-item accent">initialize</span>
+                <span class="hierarchy-item">capabilities returned</span>
+                <span class="hierarchy-item">notifications/initialized</span>
+            </div>
+        </div>
+        <div class="hierarchy-level">
+            <span class="hierarchy-label">tools</span>
+            <div class="hierarchy-items">
+                <span class="hierarchy-item accent">tools/list</span>
+                <span class="hierarchy-item accent">tools/call (happy)</span>
+                <span class="hierarchy-item">tools/call (bad params &rarr; -32602)</span>
+                <span class="hierarchy-item">tools/call (tool failure &rarr; isError:true)</span>
+            </div>
+        </div>
+        <div class="hierarchy-level">
+            <span class="hierarchy-label">resources</span>
+            <div class="hierarchy-items">
+                <span class="hierarchy-item accent">resources/list</span>
+                <span class="hierarchy-item accent">resources/read</span>
+                <span class="hierarchy-item">subscribe + change &rarr; updated notification</span>
+            </div>
+        </div>
+        <div class="hierarchy-level">
+            <span class="hierarchy-label">prompts</span>
+            <div class="hierarchy-items">
+                <span class="hierarchy-item">prompts/list</span>
+                <span class="hierarchy-item">prompts/get with required + optional args</span>
+            </div>
+        </div>
+        <div class="hierarchy-level">
+            <span class="hierarchy-label">edge</span>
+            <div class="hierarchy-items">
+                <span class="hierarchy-item">unknown method &rarr; -32601</span>
+                <span class="hierarchy-item">cancellation mid-flight</span>
+                <span class="hierarchy-item">progress notifications</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">CI tip</div>
+        <p>Inspector ships a non-interactive mode (<code>--cli</code>) that emits a JUnit-style report. Bake it into your server's CI: list tools, call each one with a known input, assert on the response. You'll catch schema regressions before users do.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-09">
+    <div class="slide-number">09</div>
+    <h2>What to Take Away</h2>
+    <ul>
+        <li><strong>Start tiny.</strong> A 30-line server with one <code>@mcp.tool</code> is a complete, useful MCP server.</li>
+        <li><strong>Schema everything.</strong> Input schema is non-negotiable; output schema makes downstream code possible; annotations let hosts make sane UX decisions.</li>
+        <li><strong>Resources for reads, tools for writes.</strong> Don't conflate them. A read-only tool is almost always a resource in disguise.</li>
+        <li><strong>Tool failures live in <code>result.isError</code>.</strong> JSON-RPC errors are for protocol problems only.</li>
+        <li><strong>Sampling and elicitation are first-class.</strong> A server can ask the model (sampling) or the user (elicitation) for help &mdash; with the host gating both.</li>
+        <li><strong>Progress and cancellation come for free.</strong> Use them on anything slower than a few hundred ms.</li>
+        <li><strong>Pass Inspector before you ship.</strong> If you don't, your users will be the conformance test.</li>
+    </ul>
+
+    <div class="callout">
+        <div class="callout-label">Where to next</div>
+        <p>Deck 04 covers everything you need to make a remote server safe to expose: the threat model, OAuth 2.1, audience binding, prompt-injection through tool output, sandboxing. Deck 05 surveys the ecosystem &mdash; which clients exist, the registry, and how to think about deployment.</p>
+    </div>
+</section>
+
+<footer class="footer">
+    <p>Part of the <a href="https://github.com/BrendanJamesLynskey/LLMs#model-context-protocol-mcp">Model Context Protocol Series</a></p>
+    <p style="margin-top: 0.5rem; font-size: 0.8rem;"><a href="https://github.com/BrendanJamesLynskey/LLMs#model-context-protocol-mcp">Back to Series Index</a></p>
+</footer>
+<script>
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.opacity = '1';
+                entry.target.style.transform = 'translateY(0)';
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.slide').forEach(slide => {
+        slide.style.opacity = '0';
+        slide.style.transform = 'translateY(30px)';
+        slide.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+        observer.observe(slide);
+    });
+</script>
+</body>
+</html>
