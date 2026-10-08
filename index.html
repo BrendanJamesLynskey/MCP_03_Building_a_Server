@@ -398,13 +398,14 @@
         }
     /* deck-mobile-fix:hero */ .hero{overflow:hidden}@supports (overflow-x:clip){.hero{overflow:visible;overflow-x:clip}}
     /* deck-mobile-fix:phone */ @media (max-width:640px){.diagram-box,.tier-fill,.section-divider>span,.action-btn{white-space:normal;overflow-wrap:anywhere}.diagram-grid>*,.diagram-panel,.diagram-box,.code-block,.callout,.metric,.control-group,.control-row>*,.pipeline-body,.roll-track>*,.tier-fill,.timeline-row>*{min-width:0;max-width:100%}p,li,a,code,td,th,.callout,.diagram-panel{overflow-wrap:break-word}pre{max-width:100%;overflow-x:auto}table{display:block;max-width:100%;overflow-x:auto}.katex-display,.bits,.canvas-wrap,.influence-map-wrapper,.timeline-track,div:has(>.bank-cell){max-width:100%;overflow-x:auto;overflow-y:hidden}select,input,img,video,iframe,.action-btn{max-width:100%}canvas{max-width:100%;height:auto}}
-    </style>
+        /* era-tag (brief 28) */ .era-tag{display:inline-block;font-family:var(--font-mono);font-size:.7rem;font-weight:500;letter-spacing:.02em;text-transform:none;padding:.1rem .55rem;border-radius:999px;border:1px solid var(--border);color:var(--text-secondary);background:var(--bg-code);vertical-align:middle;margin-left:.4rem;white-space:nowrap}@media (max-width:640px){.era-tag{white-space:normal;max-width:100%}}.era-tag.now{color:var(--accent);border-color:var(--accent)}.spec-cite{font-size:.8rem;color:var(--text-secondary);margin-top:.6rem}.spec-cite a,.callout a,.diagram-panel a{color:var(--accent)}
+</style>
 </head>
 <body>
 <header class="hero">
     <div class="series-label">Model Context Protocol Series — Presentation 03</div>
     <h1>Building an <span class="accent">MCP Server</span></h1>
-    <p class="subtitle">From a 30-line skeleton to production-shaped servers — tools, resources, prompts, sampling, elicitation, errors, progress, cancellation and logging. Python and TypeScript SDKs side-by-side.</p>
+    <p class="subtitle">From a 30-line skeleton to production-shaped servers — tools, resources, prompts, sampling, elicitation, errors, progress, cancellation and logging. Python and TypeScript SDKs side-by-side. Updated for revision 2026-07-28, where a server no longer sends requests to the client but returns <code>resultType: "input_required"</code> and the client retries; handshake-era slides are tagged &ldquo;before 2026-07-28&rdquo;.</p>
 
     <div class="tags">
         <span class="tag">Python SDK</span>
@@ -443,8 +444,9 @@
         <li><a href="#slide-02">Tools &mdash; Schema, Structured Output, Annotations</a></li>
         <li><a href="#slide-03">Resources &mdash; URIs, Content Types, Subscriptions</a></li>
         <li><a href="#slide-04">Prompts &mdash; Reusable Argumented Templates</a></li>
-        <li><a href="#slide-05">Sampling &mdash; Borrowing the Host's Model</a></li>
-        <li><a href="#slide-06">Elicitation &mdash; Asking the User a Typed Question</a></li>
+        <li><a href="#slide-05">Sampling &mdash; Borrowing the Host's Model</a> <span class="era-tag">before 2026-07-28</span></li>
+        <li><a href="#slide-06">Elicitation &mdash; Asking the User a Typed Question</a> <span class="era-tag">before 2026-07-28</span></li>
+        <li><a href="#slide-06b">Multi Round-Trip Requests &mdash; How a Server Asks in 2026-07-28</a> <span class="era-tag now">2026-07-28</span></li>
         <li><a href="#slide-07">Errors, Progress, Cancellation, Logging</a></li>
         <li><a href="#slide-08">Testing &mdash; The MCP Inspector</a></li>
         <li><a href="#slide-09">What to Take Away</a></li>
@@ -459,7 +461,7 @@
 
     <div class="diagram-grid cols-2">
         <div class="diagram-panel accent-border">
-            <h4>Python &mdash; FastMCP idiom</h4>
+            <h4>Python &mdash; FastMCP idiom (<code>mcp</code> 1.x) <span class="era-tag">before 2026-07-28</span></h4>
 <pre style="margin:0;"><code style="font-family: var(--font-mono); font-size: 0.78rem;"><span class="kw">from</span> mcp.server.fastmcp <span class="kw">import</span> FastMCP
 
 mcp = FastMCP(<span class="str">"weather"</span>)
@@ -475,7 +477,7 @@ mcp = FastMCP(<span class="str">"weather"</span>)
 </code></pre>
         </div>
         <div class="diagram-panel accent-border">
-            <h4>TypeScript &mdash; the official SDK</h4>
+            <h4>TypeScript &mdash; the official SDK (v1, <code>@modelcontextprotocol/sdk</code>) <span class="era-tag">before 2026-07-28</span></h4>
 <pre style="margin:0;"><code style="font-family: var(--font-mono); font-size: 0.78rem;"><span class="kw">import</span> { McpServer } <span class="kw">from</span> <span class="str">"@modelcontextprotocol/sdk/server/mcp.js"</span>;
 <span class="kw">import</span> { StdioServerTransport }
   <span class="kw">from</span> <span class="str">"@modelcontextprotocol/sdk/server/stdio.js"</span>;
@@ -501,6 +503,12 @@ server.registerTool(<span class="str">"forecast"</span>, {
     <div class="callout">
         <div class="callout-label">What &ldquo;done&rdquo; looks like</div>
         <p>The 30-line server above &mdash; if you save it, point Claude Desktop or Inspector at it, and call <code>forecast</code> &mdash; is a complete MCP server. Everything we cover for the rest of this deck adds polish around that core.</p>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">The SDKs for 2026-07-28 <span class="era-tag now">2026-07-28</span></div>
+        <p><strong>Python:</strong> <code>mcp</code> 2.x renamed <code>FastMCP</code> to <code>MCPServer</code>; the only change to the snippet is the first lines: <code>from mcp.server import MCPServer</code> and <code>mcp = MCPServer("weather")</code>. (<code>mcp.server.fastmcp</code> no longer exists in 2.x.) That version of the snippet was run here against <code>mcp</code> 2.3.0 and served <code>tools/list</code> and <code>tools/call</code> to the SDK client in both <code>mode="2026-07-28"</code> and <code>mode="legacy"</code>: the 2.x SDK is dual-era. <strong>TypeScript:</strong> v2, which implements 2026-07-28, ships as split packages (<code>@modelcontextprotocol/server</code>, 2.3.1 on 2026-10-05) replacing <code>@modelcontextprotocol/sdk</code>; see its <a href="https://ts.sdk.modelcontextprotocol.io/v2/migration/upgrade-to-v2">migration guide</a>. SDK versions move fast; check the docs.</p>
+        <p class="spec-cite">Sources: <a href="https://pypi.org/project/mcp/">PyPI mcp</a>, <a href="https://www.npmjs.com/package/@modelcontextprotocol/server">npm @modelcontextprotocol/server</a> (accessed 2026-10-08).</p>
     </div>
 </section>
 
@@ -623,7 +631,7 @@ server.registerTool(<span class="str">"forecast"</span>, {
 
     <p>Each entry in <code>contents</code> carries either a UTF-8 <code>text</code> field or a base64 <code>blob</code> for binary types &mdash; PDFs, images, audio. The <code>mimeType</code> is used by the host to decide rendering and by the model to disambiguate parsing.</p>
 
-    <h3>Subscriptions &mdash; pushing changes</h3>
+    <h3>Subscriptions &mdash; pushing changes <span class="era-tag">before 2026-07-28</span></h3>
     <p>If the server declared <code>resources.subscribe: true</code> at handshake, the client can ask to be told when a specific URI changes:</p>
 
     <div class="code-block">
@@ -641,6 +649,12 @@ server.registerTool(<span class="str">"forecast"</span>, {
         <div class="callout-label">Subscription is stateful</div>
         <p>The server tracks per-session subscriptions. If your server is horizontally scaled, sticky-route by <code>Mcp-Session-Id</code> or replicate the subscription set in shared state. Free-flow tip: bound the number of subscriptions per session and reject excess with <code>-32602 Invalid params</code>.</p>
     </div>
+
+    <div class="callout">
+        <div class="callout-label">Subscriptions in 2026-07-28 <span class="era-tag now">2026-07-28</span></div>
+        <p><code>resources/subscribe</code> and <code>resources/unsubscribe</code> are gone. A client sends one long-lived <code>subscriptions/listen</code> request whose filter names the change types it wants (<code>toolsListChanged</code>, <code>promptsListChanged</code>, <code>resourcesListChanged</code>, <code>resourceSubscriptions: [uri, &hellip;]</code>); the server acknowledges, then streams <code>notifications/resources/updated</code> tagged with <code>io.modelcontextprotocol/subscriptionId</code>. The subscription is scoped to that request, not to a session, so there is nothing to sticky-route; the server holds no subscription state across reconnects. Also new: a missing resource is <code>-32602</code>, not <code>-32002</code>.</p>
+    </div>
+    <p class="spec-cite">Source: MCP specification 2026-07-28 &mdash; <a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/subscriptions">Subscriptions</a>; <a href="https://modelcontextprotocol.io/specification/2026-07-28/server/resources">Resources</a> (accessed 2026-10-08).</p>
 </section>
 
 <section class="slide" id="slide-04">
@@ -707,11 +721,15 @@ mcp = FastMCP(<span class="str">"reviewer"</span>)
 
 <section class="slide" id="slide-05">
     <div class="slide-number">05</div>
-    <h2>Sampling &mdash; Borrowing the Host's Model</h2>
+    <h2>Sampling &mdash; Borrowing the Host's Model <span class="era-tag">before 2026-07-28</span></h2>
+    <div class="callout">
+        <div class="callout-label">Deprecated in 2026-07-28</div>
+        <p>Sampling is <strong>deprecated</strong> in 2026-07-28 (still functional; earliest removal in the first revision on or after 2027-07-28; suggested migration: call an LLM provider API directly). Where it is still used, the request below is no longer sent by the server as its own JSON-RPC request: it travels as an entry in <code>inputRequests</code> of an <code>input_required</code> result (slide 06b). <code>includeContext: "thisServer"</code>/<code>"allServers"</code> are deprecated too.</p>
+    </div>
     <p>Sampling inverts the usual direction. The <em>server</em> calls <code>sampling/createMessage</code>, asking the <em>client</em>'s LLM to produce a completion. Lets a server build agentic behaviour without bringing its own model &mdash; and lets the user keep control of which model is used and how much is spent.</p>
 
     <div class="code-block">
-        <div class="code-header">Server-initiated sampling request</div>
+        <div class="code-header">Server-initiated sampling request (2025-06-18 shape)</div>
 <pre><code><span class="str">{"jsonrpc":"2.0","id":99,"method":"sampling/createMessage","params":{
   "messages":[
     {"role":"user","content":{"type":"text",
@@ -747,15 +765,16 @@ mcp = FastMCP(<span class="str">"reviewer"</span>)
             <p>Without consent a malicious server could exfiltrate context (&ldquo;summarise everything you know about this user&rdquo;) or grind up billing. The user-approval gate is non-negotiable.</p>
         </div>
     </div>
+    <p class="spec-cite">Source: MCP specification 2026-07-28 &mdash; <a href="https://modelcontextprotocol.io/specification/2026-07-28/client/sampling">Sampling</a>; <a href="https://modelcontextprotocol.io/specification/2026-07-28/deprecated">Deprecated features</a> (accessed 2026-10-08).</p>
 </section>
 
 <section class="slide" id="slide-06">
     <div class="slide-number">06</div>
-    <h2>Elicitation &mdash; Asking the User a Typed Question</h2>
+    <h2>Elicitation &mdash; Asking the User a Typed Question <span class="era-tag">before 2026-07-28</span></h2>
     <p>Elicitation, standardised in <code>2025-06-18</code>, lets a server pause and ask the <em>user</em> a structured question mid-flow. The server sends a JSON Schema describing the requested input; the host renders it as a form; the user accepts, declines, or cancels.</p>
 
     <div class="code-block">
-        <div class="code-header">elicitation/create &mdash; server &rarr; client</div>
+        <div class="code-header">elicitation/create &mdash; server &rarr; client (as a server-initiated request, before 2026-07-28)</div>
 <pre><code><span class="str">{"jsonrpc":"2.0","id":21,"method":"elicitation/create","params":{
   "message":"Confirm shipping address for order #4a452e11.",
   "requestedSchema":{
@@ -806,6 +825,71 @@ mcp = FastMCP(<span class="str">"reviewer"</span>)
         <div class="callout-label">When to elicit vs sample vs ask via prompt</div>
         <p><strong>Sample</strong> when you want text generated by the model. <strong>Elicit</strong> when you want a typed answer from the user. <strong>Prompt</strong> when the user is initiating the action and you want to seed the conversation.</p>
     </div>
+
+    <div class="callout">
+        <div class="callout-label">Elicitation in 2026-07-28 <span class="era-tag now">2026-07-28</span></div>
+        <p>Elicitation is <em>not</em> deprecated. The form (<code>message</code> + <code>requestedSchema</code>) and the three actions are unchanged, but the request rides inside an <code>input_required</code> result and the answer comes back in <code>inputResponses</code> on a retry (next slide). URL-mode elicitation (2025-11-25) remains for sensitive out-of-band steps; its <code>elicitationId</code> and the <code>notifications/elicitation/complete</code> notification were removed, since the client learns the outcome by retrying.</p>
+    </div>
+    <p class="spec-cite">Source: MCP specification 2026-07-28 &mdash; <a href="https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation">Elicitation</a>; <a href="https://modelcontextprotocol.io/specification/2026-07-28/changelog">Key changes</a> (accessed 2026-10-08).</p>
+</section>
+
+<section class="slide" id="slide-06b">
+    <div class="slide-number">06b</div>
+    <h2>Multi Round-Trip Requests &mdash; How a Server Asks in 2026-07-28 <span class="era-tag now">2026-07-28</span></h2>
+    <p>In 2026-07-28 a server never sends a request to the client. When <code>tools/call</code>, <code>prompts/get</code> or <code>resources/read</code> needs more input, the server <em>finishes</em> that request with an interim result of <code>resultType: "input_required"</code>. The client gathers the answers (from the user, or its model) and <strong>retries the original request</strong> with a new ID, carrying <code>inputResponses</code> and echoing <code>requestState</code>.</p>
+
+    <div class="code-block">
+        <div class="code-header">1. Server answers the call with input_required</div>
+<pre><code><span class="cm">// &rarr; client: tools/call, id 1 (_meta omitted for brevity)</span>
+<span class="str">{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
+  "name":"ship_order","arguments":{"order":"4a452e11"}}}</span>
+<span class="cm">// &larr; server</span>
+<span class="str">{"jsonrpc":"2.0","id":1,"result":{
+  "resultType":"input_required",
+  "inputRequests":{
+    "address":{
+      "method":"elicitation/create",
+      "params":{"mode":"form",
+        "message":"Confirm shipping address for order #4a452e11.",
+        "requestedSchema":{"type":"object",
+          "properties":{"city":{"type":"string"},"zip":{"type":"string"}},
+          "required":["city","zip"]}}}},
+  "requestState":"&lt;opaque, integrity-protected by the server&gt;"
+}}</span></code></pre>
+    </div>
+
+    <div class="code-block">
+        <div class="code-header">2. Client retries the same call with the answers</div>
+<pre><code><span class="str">{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{
+  "name":"ship_order","arguments":{"order":"4a452e11"},
+  "inputResponses":{
+    "address":{"action":"accept","content":{"city":"London","zip":"10001"}}},
+  "requestState":"&lt;echoed unchanged&gt;"}}</span>
+<span class="cm">// &larr; server</span>
+<span class="str">{"jsonrpc":"2.0","id":2,"result":{"resultType":"complete",
+  "content":[{"type":"text","text":"Order 4a452e11 shipped."}],"isError":false}}</span></code></pre>
+    </div>
+
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>Rules worth remembering</h4>
+            <ul>
+                <li>Only <code>tools/call</code>, <code>prompts/get</code> and <code>resources/read</code> may return <code>input_required</code>.</li>
+                <li><code>inputRequests</code> values are <code>elicitation/create</code>, <code>sampling/createMessage</code> or <code>roots/list</code>, and only for capabilities the client declared.</li>
+                <li>The retry is a <em>new</em> request (new <code>id</code>); the server may ask again.</li>
+            </ul>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>Why it is built this way</h4>
+            <p>The server holds no state between the two calls: everything it needs comes back in the retry, so any replica can finish the job. <code>requestState</code> passes through the client, so the server MUST treat it as attacker-controlled: protect it (HMAC/AEAD) when it matters, and bind it to the principal, a short expiry and the original request.</p>
+        </div>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">See it run</div>
+        <p><a href="https://agent-protocols-explained.vercel.app/learn/05-sampling-and-elicitation">Chapter 5 of Agent Protocols Explained</a> plays the same elicitation and sampling exchanges in both eras, side by side, from a simulator checked against the official SDK. The tool name and order data here are illustrative.</p>
+    </div>
+    <p class="spec-cite">Source: MCP specification 2026-07-28 &mdash; <a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr">Multi round-trip requests</a>; <a href="https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation">Elicitation</a> (accessed 2026-10-08).</p>
 </section>
 
 <section class="slide" id="slide-07">
@@ -839,7 +923,8 @@ mcp = FastMCP(<span class="str">"reviewer"</span>)
     </div>
 
     <h3>Cancellation</h3>
-    <p>Either side can cancel an in-flight request by sending a notification with the request ID. The receiver SHOULD stop work and SHOULD NOT send the response. Initialize cannot be cancelled.</p>
+    <p><span class="era-tag">before 2026-07-28</span> Either side can cancel an in-flight request by sending a notification with the request ID. The receiver SHOULD stop work and SHOULD NOT send the response. Initialize cannot be cancelled.</p>
+    <p><span class="era-tag now">2026-07-28</span> Only the client cancels requests. On Streamable HTTP, closing the request's SSE stream <em>is</em> the cancellation; on stdio the client sends <code>notifications/cancelled</code>. A server sends <code>notifications/cancelled</code> only to end a <code>subscriptions/listen</code> stream.</p>
 
     <div class="code-block">
         <div class="code-header">notifications/cancelled</div>
@@ -849,8 +934,8 @@ mcp = FastMCP(<span class="str">"reviewer"</span>)
 }}</span></code></pre>
     </div>
 
-    <h3>Logging</h3>
-    <p>If the server declared <code>logging</code> capability, the client can call <code>logging/setLevel</code> to set a syslog-style level (<code>debug</code>, <code>info</code>, <code>notice</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>alert</code>, <code>emergency</code>). The server emits structured records via <code>notifications/message</code>:</p>
+    <h3>Logging <span class="era-tag">before 2026-07-28</span></h3>
+    <p>In 2026-07-28 Logging is <strong>deprecated</strong> and <code>logging/setLevel</code> is removed: a client puts <code>io.modelcontextprotocol/logLevel</code> in a request's <code>_meta</code>, and the server MUST NOT emit <code>notifications/message</code> for requests without it. Suggested migration: log to stderr (stdio) or OpenTelemetry. Before 2026-07-28: if the server declared <code>logging</code> capability, the client can call <code>logging/setLevel</code> to set a syslog-style level (<code>debug</code>, <code>info</code>, <code>notice</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>alert</code>, <code>emergency</code>). The server emits structured records via <code>notifications/message</code>:</p>
 
     <div class="code-block">
         <div class="code-header">A log record</div>
@@ -865,6 +950,7 @@ mcp = FastMCP(<span class="str">"reviewer"</span>)
         <div class="callout-label">Don't log secrets</div>
         <p>Log records flow into the host. The host MAY display them, persist them, or include them in error reports. Never log the <code>Authorization</code> header, OAuth tokens, refresh tokens, or row contents you wouldn't show the user. Deck 04 returns to this from the security side.</p>
     </div>
+    <p class="spec-cite">Source: MCP specification 2026-07-28 &mdash; <a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/cancellation">Cancellation</a>; <a href="https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/logging">Logging</a>; <a href="https://modelcontextprotocol.io/specification/2026-07-28/deprecated">Deprecated features</a> (accessed 2026-10-08).</p>
 </section>
 
 <section class="slide" id="slide-08">
@@ -889,11 +975,12 @@ npx @modelcontextprotocol/inspector \
     <h3>What to exercise</h3>
     <div class="hierarchy">
         <div class="hierarchy-level">
-            <span class="hierarchy-label">handshake</span>
+            <span class="hierarchy-label">handshake / discover</span>
             <div class="hierarchy-items">
                 <span class="hierarchy-item accent">initialize</span>
                 <span class="hierarchy-item">capabilities returned</span>
                 <span class="hierarchy-item">notifications/initialized</span>
+                <span class="hierarchy-item">(2026-07-28: server/discover, version error -32022)</span>
             </div>
         </div>
         <div class="hierarchy-level">
@@ -910,7 +997,7 @@ npx @modelcontextprotocol/inspector \
             <div class="hierarchy-items">
                 <span class="hierarchy-item accent">resources/list</span>
                 <span class="hierarchy-item accent">resources/read</span>
-                <span class="hierarchy-item">subscribe + change &rarr; updated notification</span>
+                <span class="hierarchy-item">subscribe + change &rarr; updated notification (2026-07-28: subscriptions/listen)</span>
             </div>
         </div>
         <div class="hierarchy-level">
@@ -944,7 +1031,7 @@ npx @modelcontextprotocol/inspector \
         <li><strong>Schema everything.</strong> Input schema is non-negotiable; output schema makes downstream code possible; annotations let hosts make sane UX decisions.</li>
         <li><strong>Resources for reads, tools for writes.</strong> Don't conflate them. A read-only tool is almost always a resource in disguise.</li>
         <li><strong>Tool failures live in <code>result.isError</code>.</strong> JSON-RPC errors are for protocol problems only.</li>
-        <li><strong>Sampling and elicitation are first-class.</strong> A server can ask the model (sampling) or the user (elicitation) for help &mdash; with the host gating both.</li>
+        <li><strong>Sampling and elicitation are first-class.</strong> A server can ask the model (sampling) or the user (elicitation) for help &mdash; with the host gating both. In 2026-07-28 it asks by returning <code>input_required</code> and the client retries; Sampling (and Roots, Logging) are deprecated.</li>
         <li><strong>Progress and cancellation come for free.</strong> Use them on anything slower than a few hundred ms.</li>
         <li><strong>Pass Inspector before you ship.</strong> If you don't, your users will be the conformance test.</li>
     </ul>
